@@ -8,6 +8,7 @@ const { findMatchingTemplate } = require("./generator/templates/registry");
 const { extractDom } = require("./extractor/extractDom");
 const { generateGenericPptx } = require("./generator/genericGenerator");
 const { refineLowConfidenceSlides } = require("./generator/aiFallback");
+const { applyGradientPatches } = require("./utils/pptxGradientPatch");
 
 const PORT = process.env.PORT || 8787;
 const AI_FALLBACK_ENABLED = process.env.AI_FALLBACK_ENABLED !== "false" && !!process.env.ANTHROPIC_API_KEY;
@@ -40,6 +41,8 @@ app.post("/api/convert", upload.single("file"), async (req, res) => {
     let pptx;
     let route;
 
+    let gradientPatches = [];
+
     const template = findMatchingTemplate(html);
     if (template) {
       route = `known-template:${template.name}`;
@@ -68,9 +71,20 @@ app.post("/api/convert", upload.single("file"), async (req, res) => {
         );
       }
       pptx = generic.pptx;
+      gradientPatches = generic.gradientPatches || [];
     }
 
-    const buffer = await pptx.write({ outputType: "nodebuffer" });
+    let buffer = await pptx.write({ outputType: "nodebuffer" });
+    if (gradientPatches.length) {
+      try {
+        buffer = await applyGradientPatches(buffer, gradientPatches);
+      } catch (e) {
+        // Non-fatal: the solid-color gradient approximation is already
+        // baked into the pptx, so a patch failure just means slightly
+        // lower fidelity, not a broken file.
+        warnings.push(`gradient background patch skipped: ${e.message}`);
+      }
+    }
     const tookMs = Date.now() - startedAt;
     res.set({
       "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
