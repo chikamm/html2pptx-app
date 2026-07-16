@@ -125,6 +125,33 @@ function gradientToSolidHex(gradient) {
 }
 
 /**
+ * Extracts the `at X% Y%` focal point out of a computed
+ * `radial-gradient(...)` string, e.g. `radial-gradient(at 25% 20%, ...)`,
+ * and normalizes CSS keyword positions (`center`, `top`, `left`, etc.) to
+ * percentages too. Falls back to the CSS default focal point (center,
+ * 50%/50%) when no explicit position is given.
+ */
+function parseRadialCenterPct(cssBackgroundImage) {
+  const fallback = { xPct: 50, yPct: 50 };
+  if (!cssBackgroundImage || !cssBackgroundImage.includes("radial-gradient")) return fallback;
+  const atMatch = cssBackgroundImage.match(/radial-gradient\(\s*(?:[a-z-]+\s+)*at\s+([^,]+),/i);
+  if (!atMatch) return fallback;
+  const tokens = atMatch[1].trim().split(/\s+/);
+  const keywordPct = { left: 0, top: 0, right: 100, bottom: 100, center: 50 };
+  function toPct(tok, axisDefault) {
+    if (tok === undefined) return axisDefault;
+    if (tok in keywordPct) return keywordPct[tok];
+    const pctMatch = tok.match(/^(-?[\d.]+)%$/);
+    if (pctMatch) return parseFloat(pctMatch[1]);
+    return axisDefault;
+  }
+  return {
+    xPct: toPct(tokens[0], 50),
+    yPct: toPct(tokens[1], 50),
+  };
+}
+
+/**
  * Extracts the URL out of a computed `background-image` value that
  * contains a raster image, e.g. `url("https://example.com/photo.jpg")`,
  * or a combined layer like `linear-gradient(...), url(...)`. Chrome's
@@ -146,4 +173,5 @@ module.exports = {
   parseLinearGradient,
   gradientToSolidHex,
   parseBackgroundImageUrl,
+  parseRadialCenterPct,
 };
