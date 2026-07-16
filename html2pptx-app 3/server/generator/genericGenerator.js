@@ -163,6 +163,27 @@ async function renderElement(slide, el, scale, opts) {
     if (el.shape === "roundRect" && el.style.borderRadiusPx) {
       shapeOpts.rectRadius = rectRadiusFor(el, w, h, scale);
     }
+
+    // A real (not url()) gradient background - `fill` above is already the
+    // solid-color approximation (safe fallback); additionally tag this
+    // shape with a unique name so the post-processing step
+    // (pptxGradientPatch.js) can find it in the raw XML afterwards and
+    // upgrade it from a flat color to a real multi-stop gradient fill.
+    const grad = el.style.backgroundImage ? parseLinearGradient(el.style.backgroundImage) : null;
+    if (grad && opts.gradientPatches && typeof opts.slideIndex === "number") {
+      const shapeName = `html2pptx-grad-s${opts.slideIndex}-e${el.order}`;
+      shapeOpts.objectName = shapeName;
+      opts.gradientPatches.push({
+        slideIndex: opts.slideIndex,
+        kind: "shape",
+        shapeName,
+        isRadial: /radial-gradient/.test(el.style.backgroundImage),
+        angleDeg: grad.angleDeg,
+        stops: grad.stops,
+        centerPct: parseRadialCenterPct(el.style.backgroundImage),
+      });
+    }
+
     slide.addShape(shapeTypeFor(opts.pptx, el), shapeOpts);
     return;
   }
@@ -267,6 +288,7 @@ async function renderSlideModelIntoPptx(pptx, slide, slideModel, scale, options 
     if (bgGrad && options.gradientPatches && typeof options.slideIndex === "number") {
       options.gradientPatches.push({
         slideIndex: options.slideIndex,
+        kind: "slideBg",
         isRadial: /radial-gradient/.test(slideModel.backgroundImage),
         angleDeg: bgGrad.angleDeg,
         stops: bgGrad.stops,
@@ -277,7 +299,14 @@ async function renderSlideModelIntoPptx(pptx, slide, slideModel, scale, options 
 
   for (const el of slideModel.elements) {
     // eslint-disable-next-line no-await-in-loop
-    await renderElement(slide, el, scale, { pptx, warnings, baseUrl: options.baseUrl, rasterizeSvg: options.rasterizeSvg });
+    await renderElement(slide, el, scale, {
+      pptx,
+      warnings,
+      baseUrl: options.baseUrl,
+      rasterizeSvg: options.rasterizeSvg,
+      gradientPatches: options.gradientPatches,
+      slideIndex: options.slideIndex,
+    });
   }
 
   const confidence = computeConfidence(slideModel.elements, slideModel.widthPx, slideModel.heightPx);
