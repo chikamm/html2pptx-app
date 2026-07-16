@@ -1,41 +1,81 @@
 (function () {
-  const tabs = document.querySelectorAll(".tab");
-  const panels = { file: document.getElementById("panel-file"), paste: document.getElementById("panel-paste") };
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      tabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      Object.entries(panels).forEach(([key, el]) => el.classList.toggle("hidden", key !== tab.dataset.tab));
-    });
-  });
-
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const dropFileName = document.getElementById("dropFileName");
+  const panelFile = document.getElementById("panel-file");
+  const panelPaste = document.getElementById("panel-paste");
+  const switchBtn = document.getElementById("switchMode");
+  const subtext = document.getElementById("subtext");
   const statusEl = document.getElementById("status");
-  const btn = document.getElementById("convertBtn");
+  const convertBtn = document.getElementById("convertBtn");
+  const uploadLabel = panelFile.querySelector(".upload-btn");
+  const uploadLabelText = uploadLabel.querySelector("span:last-child");
+  const defaultUploadLabel = uploadLabelText.textContent;
 
-  function setStatus(msg) {
-    statusEl.textContent = msg;
+  let mode = "file";
+
+  function setMode(next) {
+    mode = next;
+    if (mode === "file") {
+      panelFile.classList.remove("hidden");
+      panelPaste.classList.add("hidden");
+      subtext.textContent = "HTMLファイルをアップロードしてください";
+      switchBtn.textContent = "HTMLを直接貼り付ける";
+    } else {
+      panelFile.classList.add("hidden");
+      panelPaste.classList.remove("hidden");
+      subtext.textContent = "HTMLソースを貼り付けて変換します";
+      switchBtn.textContent = "ファイルをアップロードする";
+    }
+    setStatus("", null);
   }
 
-  btn.addEventListener("click", async () => {
-    const activeTab = document.querySelector(".tab.active").dataset.tab;
-    let body;
-    let headers = {};
+  switchBtn.addEventListener("click", () => setMode(mode === "file" ? "paste" : "file"));
 
-    if (activeTab === "file") {
-      const file = document.getElementById("fileInput").files[0];
-      if (!file) return setStatus("HTMLファイルを選択してください。");
+  function showSelectedFile(file) {
+    if (!file) {
+      dropFileName.textContent = "";
+      dropFileName.classList.remove("show");
+      return;
+    }
+    dropFileName.textContent = `📄 ${file.name}`;
+    dropFileName.classList.add("show");
+  }
+
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = "status" + (kind ? ` ${kind}` : "");
+  }
+
+  function setLoading(isLoading) {
+    uploadLabel.style.pointerEvents = isLoading ? "none" : "";
+    uploadLabel.style.opacity = isLoading ? "0.6" : "";
+    uploadLabelText.textContent = isLoading ? "変換中..." : defaultUploadLabel;
+    if (convertBtn) {
+      convertBtn.disabled = isLoading;
+      const spinner = convertBtn.querySelector(".btn-spinner");
+      const label = convertBtn.querySelector(".btn-label");
+      if (spinner) spinner.hidden = !isLoading;
+      if (label) label.textContent = isLoading ? "変換中..." : "PPTXに変換してダウンロード";
+    }
+  }
+
+  async function runConvert({ file, html }) {
+    let body;
+    const headers = {};
+
+    if (file) {
       const form = new FormData();
       form.append("file", file);
       body = form;
     } else {
-      const html = document.getElementById("htmlInput").value;
-      if (!html.trim()) return setStatus("HTMLを貼り付けてください。");
+      if (!html || !html.trim()) return setStatus("HTMLを貼り付けてください。", "error");
       body = JSON.stringify({ html });
       headers["Content-Type"] = "application/json";
     }
 
-    btn.disabled = true;
-    setStatus("変換中... (初回はChromiumの起動に少し時間がかかります)");
+    setLoading(true);
+    setStatus("変換中です。初回アクセス直後はサーバーの起動に時間がかかることがあります。", "info");
 
     try {
       const res = await fetch("/api/convert", { method: "POST", headers, body });
@@ -54,11 +94,47 @@
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setStatus(`完了 (${route}${warnings && warnings !== "0" ? ` / warnings: ${warnings}` : ""})`);
+      setStatus(
+        `✅ 変換が完了しました (${route}${warnings && warnings !== "0" ? ` / warnings: ${warnings}` : ""})`,
+        "success"
+      );
     } catch (e) {
-      setStatus(`エラー: ${e.message}`);
+      setStatus(`⚠️ エラー: ${e.message}`, "error");
     } finally {
-      btn.disabled = false;
+      setLoading(false);
     }
+  }
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    showSelectedFile(file);
+    runConvert({ file });
   });
+
+  ["dragenter", "dragover"].forEach((evt) =>
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add("dragover");
+    })
+  );
+  ["dragleave", "dragend"].forEach((evt) =>
+    dropzone.addEventListener(evt, () => dropzone.classList.remove("dragover"))
+  );
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    fileInput.files = e.dataTransfer.files;
+    showSelectedFile(file);
+    runConvert({ file });
+  });
+
+  if (convertBtn) {
+    convertBtn.addEventListener("click", () => {
+      const html = document.getElementById("htmlInput").value;
+      runConvert({ html });
+    });
+  }
 })();
