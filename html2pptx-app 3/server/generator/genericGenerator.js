@@ -1,7 +1,7 @@
 "use strict";
 
 const pptxgen = require("pptxgenjs");
-const { parseColor, alphaToTransparency, parseLinearGradient, gradientToSolidHex, parseBackgroundImageUrl } = require("../utils/colorUtils");
+const { parseColor, alphaToTransparency, parseLinearGradient, gradientToSolidHex, parseBackgroundImageUrl, parseRadialCenterPct } = require("../utils/colorUtils");
 const { resolveImageToDataUri } = require("../utils/imageUtils");
 
 const SAFE_FONT = "Arial";
@@ -260,7 +260,19 @@ async function renderSlideModelIntoPptx(pptx, slide, slideModel, scale, options 
     const bgGrad = slideModel.backgroundImage ? parseLinearGradient(slideModel.backgroundImage) : null;
     const bgSolidFromGrad = bgGrad ? gradientToSolidHex(bgGrad) : null;
     const bgColor = bgSolidFromGrad || (parseColor(slideModel.backgroundColor) || {}).hex;
+    // Solid color is always set first as a safe fallback - if the later
+    // XML gradient patch (server/utils/pptxGradientPatch.js) fails for any
+    // reason, the slide still isn't left with no background at all.
     if (bgColor) slide.background = { color: bgColor };
+    if (bgGrad && options.gradientPatches && typeof options.slideIndex === "number") {
+      options.gradientPatches.push({
+        slideIndex: options.slideIndex,
+        isRadial: /radial-gradient/.test(slideModel.backgroundImage),
+        angleDeg: bgGrad.angleDeg,
+        stops: bgGrad.stops,
+        centerPct: parseRadialCenterPct(slideModel.backgroundImage),
+      });
+    }
   }
 
   for (const el of slideModel.elements) {
@@ -284,6 +296,7 @@ async function generateGenericPptx(slidesModel, options = {}) {
   pptx.author = "html2pptx-app";
   const warnings = [];
   const lowConfidenceSlides = [];
+  const gradientPatches = [];
 
   if (!slidesModel.length) throw new Error("No slides were extracted from the supplied HTML.");
 
@@ -293,11 +306,17 @@ async function generateGenericPptx(slidesModel, options = {}) {
 
   for (let i = 0; i < slidesModel.length; i++) {
     const slide = pptx.addSlide();
-    const { confidence } = await renderSlideModelIntoPptx(pptx, slide, slidesModel[i], scale, { warnings, baseUrl: options.baseUrl, rasterizeSvg: options.rasterizeSvg });
+    const { confidence } = await renderSlideModelIntoPptx(pptx, slide, slidesModel[i], scale, {
+      warnings,
+      baseUrl: options.baseUrl,
+      rasterizeSvg: options.rasterizeSvg,
+      gradientPatches,
+      slideIndex: i,
+    });
     if (confidence.score < 0.75) lowConfidenceSlides.push(i);
   }
 
-  return { pptx, lowConfidenceSlides, warnings };
+  return { pptx, lowConfidenceSlides, warnings, gradientPatches };
 }
 
 module.exports = { generateGenericPptx, renderSlideModelIntoPptx, computeLayout, mapFontFamily };
