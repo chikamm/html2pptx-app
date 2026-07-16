@@ -1,7 +1,7 @@
 "use strict";
 
 const pptxgen = require("pptxgenjs");
-const { parseColor, alphaToTransparency, parseLinearGradient, gradientToSolidHex } = require("../utils/colorUtils");
+const { parseColor, alphaToTransparency, parseLinearGradient, gradientToSolidHex, parseBackgroundImageUrl } = require("../utils/colorUtils");
 const { resolveImageToDataUri } = require("../utils/imageUtils");
 
 const SAFE_FONT = "Arial";
@@ -78,6 +78,11 @@ function boxFillAndLine(el, scale) {
   };
 }
 
+function rectRadiusFor(el, w, h, scale) {
+  const wanted = el.style.borderRadiusPx * scale;
+  return Math.min(w, h) / 2 > wanted ? wanted : Math.min(w, h) / 2;
+}
+
 function shapeTypeFor(pptx, el) {
   if (el.shape === "ellipse") return pptx.ShapeType.ellipse;
   if (el.shape === "roundRect") return pptx.ShapeType.roundRect;
@@ -124,13 +129,39 @@ async function renderElement(slide, el, scale, opts) {
   const h = Math.max(0.02, el.rect.h * scale);
 
   if (el.type === "box") {
+    const bgUrl = el.style.backgroundImage ? parseBackgroundImageUrl(el.style.backgroundImage) : null;
+
+    if (bgUrl) {
+      // CSS `background-image: url(...)` (a raster photo, as opposed to a
+      // gradient) - the extractor captures the raw string but only a
+      // gradient can be approximated as a fill color, so a url() was
+      // previously silently dropped. Render it as a cover-fit image
+      // instead, then draw the border on top (if any) as an unfilled
+      // outline so rounded corners / borders still work visually.
+      try {
+        const dataUri = await resolveImageToDataUri(bgUrl, opts.baseUrl);
+        if (dataUri) {
+          slide.addImage({ data: dataUri, x, y, w, h, sizing: { type: "cover", w, h } });
+        }
+      } catch (e) {
+        opts.warnings.push(`background image skipped (${bgUrl}): ${e.message}`);
+      }
+      const { line } = boxFillAndLine(el, scale);
+      if (line.type !== "none") {
+        const outlineOpts = { x, y, w, h, fill: { type: "none" }, line };
+        if (el.shape === "roundRect" && el.style.borderRadiusPx) {
+          outlineOpts.rectRadius = rectRadiusFor(el, w, h, scale);
+        }
+        slide.addShape(shapeTypeFor(opts.pptx, el), outlineOpts);
+      }
+      return;
+    }
+
     const { fill, line } = boxFillAndLine(el, scale);
     if (fill.type === "none" && line.type === "none") return;
     const shapeOpts = { x, y, w, h, fill, line };
     if (el.shape === "roundRect" && el.style.borderRadiusPx) {
-      shapeOpts.rectRadius = Math.min(w, h) / 2 > el.style.borderRadiusPx * scale
-        ? el.style.borderRadiusPx * scale
-        : Math.min(w, h) / 2;
+      shapeOpts.rectRadius = rectRadiusFor(el, w, h, scale);
     }
     slide.addShape(shapeTypeFor(opts.pptx, el), shapeOpts);
     return;
@@ -216,10 +247,21 @@ function computeConfidence(elements, widthPx, heightPx) {
  */
 async function renderSlideModelIntoPptx(pptx, slide, slideModel, scale, options = {}) {
   const warnings = options.warnings || [];
-  const bgGrad = slideModel.backgroundImage ? parseLinearGradient(slideModel.backgroundImage) : null;
-  const bgSolidFromGrad = bgGrad ? gradientToSolidHex(bgGrad) : null;
-  const bgColor = bgSolidFromGrad || (parseColor(slideModel.backgroundColor) || {}).hex;
-  if (bgColor) slide.background = { color: bgColor };
+  const bgUrl = slideModel.backgroundImage ? parseBackgroundImageUrl(slideModel.backgroundImage) : null;
+
+  if (bgUrl) {
+    try {
+      const dataUri = await resolveImageToDataUri(bgUrl, options.baseUrl);
+      if (dataUri) slide.background = { data: dataUri };
+    } catch (e) {
+      warnings.push(`slide background image skipped (${bgUrl}): ${e.message}`);
+    }
+  } else {
+    const bgGrad = slideModel.backgroundImage ? parseLinearGradient(slideModel.backgroundImage) : null;
+    const bgSolidFromGrad = bgGrad ? gradientToSolidHex(bgGrad) : null;
+    const bgColor = bgSolidFromGrad || (parseColor(slideModel.backgroundColor) || {}).hex;
+    if (bgColor) slide.background = { color: bgColor };
+  }
 
   for (const el of slideModel.elements) {
     // eslint-disable-next-line no-await-in-loop
@@ -249,13 +291,4 @@ async function generateGenericPptx(slidesModel, options = {}) {
   // ratios within one deck are rare and PPTX only supports one canvas size).
   const { scale } = computeLayout(pptx, slidesModel[0].widthPx, slidesModel[0].heightPx);
 
-  for (let i = 0; i < slidesModel.length; i++) {
-    const slide = pptx.addSlide();
-    const { confidence } = await renderSlideModelIntoPptx(pptx, slide, slidesModel[i], scale, { warnings, baseUrl: options.baseUrl, rasterizeSvg: options.rasterizeSvg });
-    if (confidence.score < 0.75) lowConfidenceSlides.push(i);
-  }
-
-  return { pptx, lowConfidenceSlides, warnings };
-}
-
-module.exports = { generateGenericPptx, renderSlideModelIntoPptx, computeLayout, mapFontFamily };
+  for (let i = 0; i <
