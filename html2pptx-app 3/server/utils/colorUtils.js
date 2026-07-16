@@ -118,9 +118,25 @@ function gradientToSolidHex(gradient) {
   return mid.color.hex;
 }
 
+/**
+ * Extracts the URL out of a computed `background-image` value that
+ * contains a raster image, e.g. `url("https://example.com/photo.jpg")`,
+ * or a combined layer like `linear-gradient(...), url(...)`. Chrome's
+ * computed style always resolves relative paths to absolute URLs and
+ * wraps the value in `url("...")`, so a single regex is sufficient.
+ * Returns null if no `url(...)` layer is present (e.g. gradient-only).
+ */
+function parseBackgroundImageUrl(cssBackgroundImage) {
+  if (!cssBackgroundImage || !cssBackgroundImage.includes("url(")) return null;
+  const m = cssBackgroundImage.match(/url\((?:"([^"]*)"|'([^']*)'|([^)]*))\)/);
+  if (!m) return null;
+  return m[1] || m[2] || m[3] || null;
+}
+
 module.exports = {
   parseColor,
   alphaToTransparency,
   parseLinearGradient,
   gradientToSolidHex,
+  parseBackgroundImageUrl,
 };
