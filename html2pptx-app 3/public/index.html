@@ -4,42 +4,83 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>HTML → PPTX 変換</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
+  <div class="bg-glow"></div>
   <main class="wrap">
-    <h1>HTML → PPTX 変換</h1>
-    <p class="lead">
-      HTMLスライドをスクリーンショットではなく、テキストボックス・図形・画像などの
-      PPTXネイティブ要素に変換します。既知の社内テンプレートは専用ロジックで高精度に、
-      それ以外の任意のHTMLはルールベースの汎用エンジンで変換します。
-    </p>
+    <header class="hero">
+      <div class="brand">
+        <span class="brand-mark">H<span class="arrow">→</span>P</span>
+      </div>
+      <h1>HTML <span class="arrow-lg">→</span> PPTX 変換</h1>
+      <p class="lead">
+        HTMLスライドをスクリーンショットではなく、テキストボックス・図形・画像などの
+        <strong>PPTXネイティブ要素</strong>に変換します。既知の社内テンプレートは専用ロジックで高精度に、
+        それ以外の任意のHTMLはルールベースの汎用エンジンで変換します。
+      </p>
+    </header>
 
-    <section class="panel">
-      <div class="tabs">
-        <button class="tab active" data-tab="file">ファイルをアップロード</button>
-        <button class="tab" data-tab="paste">HTMLを貼り付け</button>
+    <section class="panel card">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="file" role="tab" aria-selected="true">ファイルをアップロード</button>
+        <button class="tab" data-tab="paste" role="tab" aria-selected="false">HTMLを貼り付け</button>
+        <span class="tab-indicator"></span>
       </div>
 
       <div class="tab-panel" id="panel-file">
-        <input type="file" id="fileInput" accept=".html,text/html" />
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input type="file" id="fileInput" accept=".html,text/html" hidden />
+          <svg class="drop-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M24 6v24M24 6l-8 8M24 6l8 8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M8 32v6a4 4 0 0 0 4 4h24a4 4 0 0 0 4-4v-6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div class="drop-text">
+            <strong>クリックして選択</strong>、またはHTMLファイルをここにドラッグ＆ドロップ
+          </div>
+          <div class="drop-file" id="dropFileName"></div>
+        </label>
       </div>
 
       <div class="tab-panel hidden" id="panel-paste">
         <textarea id="htmlInput" placeholder="ここにHTMLソースを貼り付け..."></textarea>
       </div>
 
-      <button id="convertBtn" class="primary">PPTXに変換してダウンロード</button>
+      <button id="convertBtn" class="primary">
+        <span class="btn-label">PPTXに変換してダウンロード</span>
+        <span class="btn-spinner" hidden></span>
+      </button>
       <div id="status" class="status"></div>
     </section>
 
     <section class="panel muted">
       <h2>仕組み</h2>
-      <ol>
-        <li><strong>既知テンプレート判定</strong> — 社内で使っている決まったクラス構造のHTMLなら、専用ジェネレータが内容を正確に読み取って再現します。</li>
-        <li><strong>汎用ルールベース変換</strong> — それ以外のHTMLは、実ブラウザ(Chromium)でレンダリングして各要素の座標・スタイルを取得し、テキストボックス・図形・画像に機械的に変換します。</li>
-        <li><strong>AIフォールバック</strong> — 汎用変換で重なりやはみ出しが検出されたスライドのみ、AIが個別に補正します（<code>ANTHROPIC_API_KEY</code> 設定時のみ有効）。</li>
-      </ol>
+      <div class="steps">
+        <div class="step">
+          <span class="step-no">1</span>
+          <div class="step-body">
+            <h3>既知テンプレート判定</h3>
+            <p>社内で使っている決まったクラス構造のHTMLなら、専用ジェネレータが内容を正確に読み取って再現します。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-no">2</span>
+          <div class="step-body">
+            <h3>汎用ルールベース変換</h3>
+            <p>それ以外のHTMLは、実ブラウザ(Chromium)でレンダリングして各要素の座標・スタイルを取得し、テキストボックス・図形・画像に機械的に変換します。</p>
+          </div>
+        </div>
+        <div class="step">
+          <span class="step-no">3</span>
+          <div class="step-body">
+            <h3>AIフォールバック</h3>
+            <p>汎用変換で重なりやはみ出しが検出されたスライドのみ、AIが個別に補正します（<code>ANTHROPIC_API_KEY</code> 設定時のみ有効）。</p>
+          </div>
+        </div>
+      </div>
     </section>
   </main>
   <script src="/app.js"></script>
