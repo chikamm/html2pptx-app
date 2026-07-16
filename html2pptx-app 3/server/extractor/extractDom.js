@@ -59,7 +59,20 @@ function browserSideExtract(opts) {
     return { hasBg, hasBgImage, hasBorder, hasShadow, visual: hasBg || hasBgImage || hasBorder || hasShadow };
   }
 
-  function isInlineOnly(el) {
+  function isInlineOnly(el, cs) {
+    // A `display: grid`/`flex` container lays its children out as separate
+    // positioned boxes (e.g. a table-like row built from several `<span>`
+    // "cells" side by side), not as one flowing line of text - even though
+    // every child happens to be a tag from `inlineTags` (which really only
+    // means "commonly used for inline emphasis like <b>/<span>", not
+    // "always inline-flowing"). Treating such a container as a single text
+    // leaf would merge all its columns into one run and lose their
+    // individual positions/styles, so grid/flex containers are always
+    // recursed into instead, regardless of their children's tag names.
+    const display = cs.display;
+    if (display === "flex" || display === "inline-flex" || display === "grid" || display === "inline-grid") {
+      return false;
+    }
     return Array.from(el.children).every((c) => inlineTags.includes(c.tagName));
   }
 
@@ -144,7 +157,7 @@ function browserSideExtract(opts) {
       }
 
       const vis = hasOwnVisualStyle(cs);
-      const ownTextEl = isInlineOnly(el) && el.textContent && el.textContent.trim() !== "";
+      const ownTextEl = isInlineOnly(el, cs) && el.textContent && el.textContent.trim() !== "";
 
       if (vis.visual) {
         out.push({
@@ -244,7 +257,7 @@ async function extractDom(html, options = {}) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: options.timeoutMs || 60000 });
+    await page.setContent(html, { waitUntil: ["load", "networkidle0"], timeout: options.timeoutMs || 30000 });
     // let web fonts / late layout settle
     await page.evaluate(() => document.fonts && document.fonts.ready);
 
