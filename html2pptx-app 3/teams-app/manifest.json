@@ -1,0 +1,42 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "70a6eb68-b7b5-4f16-bdb4-5c9c257108ad",
+  "developer": {
+    "name": "MaterialPR",
+    "websiteUrl": "https://CHANGE-ME.example.com",
+    "privacyUrl": "https://CHANGE-ME.example.com/teams/privacy.html",
+    "termsOfUseUrl": "https://CHANGE-ME.example.com/teams/terms.html"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "HTML→PPTX変換",
+    "full": "HTML→PPTX変換ツール（MaterialPR社内ツール）"
+  },
+  "description": {
+    "short": "HTMLスライドをPPTXネイティブ要素に変換",
+    "full": "HTMLスライドをスクリーンショットではなく、テキストボックス・図形・画像などのPPTXネイティブ要素に変換する社内ツールです。既知の社内テンプレートは専用ロジックで高精度に、それ以外の任意のHTMLはルールベースの汎用エンジンで変換します。"
+  },
+  "accentColor": "#B50012",
+  "staticTabs": [
+    {
+      "entityId": "html2pptxHome",
+      "name": "HTML→PPTX変換",
+      "contentUrl": "https://CHANGE-ME.example.com/",
+      "websiteUrl": "https://CHANGE-ME.example.com/",
+      "scopes": ["personal"]
+    }
+  ],
+  "configurableTabs": [
+    {
+      "configurationUrl": "https://CHANGE-ME.example.com/teams/config.html",
+      "canUpdateConfiguration": false,
+      "scopes": ["team", "groupchat"]
+    }
+  ],
+  "validDomains": ["CHANGE-ME.example.com"]
+}

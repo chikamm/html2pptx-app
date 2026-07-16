@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HTML → PPTX 変換</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <h1>HTML → PPTX 変換</h1>
+    <p class="lead">
+      HTMLスライドをスクリーンショットではなく、テキストボックス・図形・画像などの
+      PPTXネイティブ要素に変換します。既知の社内テンプレートは専用ロジックで高精度に、
+      それ以外の任意のHTMLはルールベースの汎用エンジンで変換します。
+    </p>
+
+    <section class="panel">
+      <div class="tabs">
+        <button class="tab active" data-tab="file">ファイルをアップロード</button>
+        <button class="tab" data-tab="paste">HTMLを貼り付け</button>
+      </div>
+
+      <div class="tab-panel" id="panel-file">
+        <input type="file" id="fileInput" accept=".html,text/html" />
+      </div>
+
+      <div class="tab-panel hidden" id="panel-paste">
+        <textarea id="htmlInput" placeholder="ここにHTMLソースを貼り付け..."></textarea>
+      </div>
+
+      <button id="convertBtn" class="primary">PPTXに変換してダウンロード</button>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="panel muted">
+      <h2>仕組み</h2>
+      <ol>
+        <li><strong>既知テンプレート判定</strong> — 社内で使っている決まったクラス構造のHTMLなら、専用ジェネレータが内容を正確に読み取って再現します。</li>
+        <li><strong>汎用ルールベース変換</strong> — それ以外のHTMLは、実ブラウザ(Chromium)でレンダリングして各要素の座標・スタイルを取得し、テキストボックス・図形・画像に機械的に変換します。</li>
+        <li><strong>AIフォールバック</strong> — 汎用変換で重なりやはみ出しが検出されたスライドのみ、AIが個別に補正します（<code>ANTHROPIC_API_KEY</code> 設定時のみ有効）。</li>
+      </ol>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

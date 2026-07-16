@@ -1,0 +1,21 @@
+{
+  "name": "html2pptx-app",
+  "version": "0.1.0",
+  "description": "任意のHTMLスライドをスクリーンショットではなくPPTXネイティブ要素(テキストボックス・図形・画像)に変換するハイブリッド(ルールベース+既知テンプレート+AIフォールバック)WEBアプリ",
+  "main": "server/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test:sample": "node test/run_sample.js",
+    "test:mock": "node test/run_mock_model.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0",
+    "cheerio": "^1.2.0",
+    "express": "^5.2.1",
+    "multer": "^2.2.0",
+    "pptxgenjs": "^4.0.1",
+    "puppeteer": "^25.3.0"
+  }
+}
