@@ -291,4 +291,13 @@ async function generateGenericPptx(slidesModel, options = {}) {
   // ratios within one deck are rare and PPTX only supports one canvas size).
   const { scale } = computeLayout(pptx, slidesModel[0].widthPx, slidesModel[0].heightPx);
 
-  for (let i = 0; i <
+  for (let i = 0; i < slidesModel.length; i++) {
+    const slide = pptx.addSlide();
+    const { confidence } = await renderSlideModelIntoPptx(pptx, slide, slidesModel[i], scale, { warnings, baseUrl: options.baseUrl, rasterizeSvg: options.rasterizeSvg });
+    if (confidence.score < 0.75) lowConfidenceSlides.push(i);
+  }
+
+  return { pptx, lowConfidenceSlides, warnings };
+}
+
+module.exports = { generateGenericPptx, renderSlideModelIntoPptx, computeLayout, mapFontFamily };
