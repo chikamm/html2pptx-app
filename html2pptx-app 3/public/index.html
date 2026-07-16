@@ -11,52 +11,63 @@
 <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="bg-glow"></div>
-  <main class="wrap">
-    <header class="hero">
-      <div class="logo-card">
-        <img class="brand-logo" src="/logo.png" alt="HTML to PPTX" />
-      </div>
-      <p class="lead">
-        HTMLスライドをスクリーンショットではなく、テキストボックス・図形・画像などの
-        <strong>PPTXネイティブ要素</strong>に変換します。既知の社内テンプレートは専用ロジックで高精度に、
-        それ以外の任意のHTMLはルールベースの汎用エンジンで変換します。
-      </p>
-    </header>
+  <div class="bg-lines" aria-hidden="true">
+    <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMaxYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <g fill="none" stroke="#B50012" stroke-width="1.5">
+        <path d="M1600,120 C1300,120 1150,260 1000,420 C880,550 780,650 600,700" opacity="0.35"/>
+        <path d="M1600,180 C1320,180 1180,300 1040,460 C920,590 820,680 640,730" opacity="0.28"/>
+        <path d="M1600,240 C1340,240 1210,340 1080,500 C960,630 860,710 680,760" opacity="0.22"/>
+        <path d="M1600,300 C1360,300 1240,380 1120,540 C1000,670 900,740 720,790" opacity="0.16"/>
+        <path d="M1600,360 C1380,360 1270,420 1160,580 C1040,700 940,770 760,820" opacity="0.10"/>
+      </g>
+    </svg>
+  </div>
 
-    <section class="panel card">
-      <div class="tabs" role="tablist">
-        <button class="tab active" data-tab="file" role="tab" aria-selected="true">ファイルをアップロード</button>
-        <button class="tab" data-tab="paste" role="tab" aria-selected="false">HTMLを貼り付け</button>
-        <span class="tab-indicator"></span>
-      </div>
+  <header class="topbar">
+    <div class="logo-lockup">
+      <span class="logo-icon">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 18 2 12 8 6"/><polyline points="16 6 22 12 16 18"/></svg>
+        <span class="logo-badge">P</span>
+      </span>
+      <span class="logo-text">convert <span class="hl">HTML</span> to PPTX</span>
+    </div>
+  </header>
 
-      <div class="tab-panel" id="panel-file">
-        <label class="dropzone" id="dropzone" for="fileInput">
+  <main class="stage">
+    <section class="upload-card" id="dropzone">
+      <div class="upload-icon">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24 6v24M24 6l-8 8M24 6l8 8" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M8 32v6a4 4 0 0 0 4 4h24a4 4 0 0 0 4-4v-6" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1>HTMLを、編集可能な<br />PowerPointへ。</h1>
+      <p class="sub" id="subtext">HTMLファイルをアップロードしてください</p>
+
+      <div class="mode-panel" id="panel-file">
+        <label class="upload-btn" for="fileInput">
           <input type="file" id="fileInput" accept=".html,text/html" hidden />
-          <svg class="drop-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M24 6v24M24 6l-8 8M24 6l8 8" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M8 32v6a4 4 0 0 0 4 4h24a4 4 0 0 0 4-4v-6" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <div class="drop-text">
-            <strong>クリックして選択</strong>、またはHTMLファイルをここにドラッグ＆ドロップ
-          </div>
-          <div class="drop-file" id="dropFileName"></div>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span>HTML ファイルを選択</span>
         </label>
+        <div class="drop-hint">または、ここへドラッグ＆ドロップ</div>
+        <div class="drop-file" id="dropFileName"></div>
       </div>
 
-      <div class="tab-panel hidden" id="panel-paste">
+      <div class="mode-panel hidden" id="panel-paste">
         <textarea id="htmlInput" placeholder="ここにHTMLソースを貼り付け..."></textarea>
+        <button id="convertBtn" class="upload-btn wide">
+          <span class="btn-label">PPTXに変換してダウンロード</span>
+          <span class="btn-spinner" hidden></span>
+        </button>
       </div>
 
-      <button id="convertBtn" class="primary">
-        <span class="btn-label">PPTXに変換してダウンロード</span>
-        <span class="btn-spinner" hidden></span>
-      </button>
+      <button type="button" class="switch-link" id="switchMode">HTMLを直接貼り付ける</button>
+
       <div id="status" class="status"></div>
     </section>
 
-    <section class="panel muted">
+    <section class="panel muted how">
       <h2>仕組み</h2>
       <div class="steps">
         <div class="step">
