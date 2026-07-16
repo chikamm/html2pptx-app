@@ -56,20 +56,22 @@ function alphaToTransparency(alpha) {
 }
 
 /**
- * Chrome normalizes `background-image: linear-gradient(...)` computed
- * style into a string like:
+ * Chrome normalizes `background-image: linear-gradient(...)` /
+ * `radial-gradient(...)` computed style into a string like:
  *   "linear-gradient(135deg, rgb(181, 0, 18) 0%, rgb(255, 13, 20) 100%)"
+ *   "radial-gradient(at 25% 20%, rgb(249, 115, 22) 0%, rgb(10, 14, 31) 100%)"
  * pptxgenjs has no gradient-fill API (documented limitation), so we
  * extract the stops and let the caller decide how to approximate it -
  * typically either the first stop, or a manually blended midpoint color,
  * or (best fidelity) rendering a tiny gradient PNG and using it as an
- * image fill / background image.
+ * image fill / background image. Handles both gradient types the same
+ * way since only the color stops matter for the solid-color fallback;
+ * the leading angle/shape/position token (e.g. `135deg`, `at 25% 20%`)
+ * simply fails `parseColor()` and is skipped.
  */
-function parseLinearGradient(cssBackgroundImage) {
-  if (!cssBackgroundImage || !cssBackgroundImage.includes("linear-gradient")) {
-    return null;
-  }
-  const inner = cssBackgroundImage.match(/linear-gradient\(([^]*)\)/);
+function parseGradient(cssBackgroundImage) {
+  if (!cssBackgroundImage) return null;
+  const inner = cssBackgroundImage.match(/(?:linear|radial)-gradient\(([^]*)\)/);
   if (!inner) return null;
   // split on commas that are NOT inside rgb(...)/rgba(...)
   const parts = [];
@@ -109,6 +111,10 @@ function parseLinearGradient(cssBackgroundImage) {
   return { angleDeg, stops };
 }
 
+// Backward-compatible alias (only gradient parser in this module historically
+// handled linear-gradient; now handles radial-gradient too).
+const parseLinearGradient = parseGradient;
+
 /** Blends the gradient into a single representative solid hex color
  *  (midpoint-weighted average) - used as the v1 fallback for slide/shape
  *  backgrounds since pptxgenjs cannot express true gradient fills. */
@@ -136,6 +142,7 @@ function parseBackgroundImageUrl(cssBackgroundImage) {
 module.exports = {
   parseColor,
   alphaToTransparency,
+  parseGradient,
   parseLinearGradient,
   gradientToSolidHex,
   parseBackgroundImageUrl,
