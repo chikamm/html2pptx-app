@@ -98,12 +98,15 @@ body {
   width: 108px;
   height: 108px;
   margin: 0 auto 32px;
-  border-radius: 50%;
-  background: var(--red);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 20px 40px rgba(227, 27, 35, 0.35), 0 0 0 18px rgba(227, 27, 35, 0.07);
+}
+.upload-icon img {
+  width: 92px;
+  height: 92px;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 22px rgba(227, 27, 35, 0.35));
 }
 
 h1 {
@@ -237,4 +240,5 @@ h1 {
   .upload-card { padding: 40px 26px 32px; border-radius: 24px; }
   h1 { font-size: 26px; }
   .upload-icon { width: 84px; height: 84px; }
+  .upload-icon img { width: 72px; height: 72px; }
 }
