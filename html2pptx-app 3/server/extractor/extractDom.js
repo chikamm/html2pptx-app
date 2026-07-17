@@ -416,7 +416,7 @@ async function extractDom(html, options = {}) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
-    await page.setContent(html, { waitUntil: ["load", "networkidle0"], timeout: options.timeoutMs || 60000 });
+    await page.setContent(html, { waitUntil: ["load", "networkidle0"], timeout: options.timeoutMs || 90000 });
     // let web fonts / late layout settle
     await page.evaluate(() => document.fonts && document.fonts.ready);
 
