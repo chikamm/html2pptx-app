@@ -101,6 +101,29 @@ app.post("/api/convert", upload.single("file"), async (req, res) => {
   }
 });
 
+// Centralized error handler (4-arg signature = Express error middleware).
+// Needed because multer's `upload.single("file")` runs as middleware
+// BEFORE the route handler's own try/catch even exists - a MulterError
+// (e.g. the 30MB `fileSize` limit below being exceeded) is thrown there
+// and skips straight past the route entirely, landing in Express's
+// default handler instead, which returns a bare HTML error page rather
+// than the { error: "..." } JSON shape the frontend expects. Registering
+// this last catches that case (and any other stray middleware error) and
+// normalizes it to the same JSON shape as every other failure path.
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(413).json({
+        error: "アップロードできるファイルサイズは30MBまでです。ファイルを軽量化するか分割してから再度アップロードしてください。",
+      });
+    }
+    return res.status(400).json({ error: `アップロードに失敗しました: ${err.message}` });
+  }
+  // eslint-disable-next-line no-console
+  console.error("unhandled error:", err);
+  res.status(500).json({ error: err.message || "予期しないエラーが発生しました。" });
+});
+
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`html2pptx-app listening on :${PORT} (AI fallback ${AI_FALLBACK_ENABLED ? "ON" : "OFF"})`);
