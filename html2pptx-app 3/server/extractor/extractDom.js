@@ -406,7 +406,12 @@ async function extractDom(html, options = {}) {
   const browser = await puppeteer.launch({
     headless: true,
     executablePath: options.executablePath || process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--force-color-profile=srgb"],
+    // --disable-dev-shm-usage: Docker/Render containers default /dev/shm to
+    // 64MB, which is too small for Chromium's shared memory needs and can
+    // make it hang or crash rather than fail fast - this makes it fall back
+    // to /tmp instead, which is the standard fix for "Puppeteer in Docker"
+    // timeouts/hangs even on small, resource-light pages.
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--force-color-profile=srgb"],
   });
   try {
     const page = await browser.newPage();
