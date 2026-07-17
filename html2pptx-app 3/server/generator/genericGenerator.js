@@ -28,11 +28,36 @@ function textAlignToPptx(cssAlign) {
 }
 
 /**
- * Computes a single uniform inches-per-px scale so the extracted slide's
- * own pixel geometry maps onto a PowerPoint canvas without distortion,
- * and defines that exact aspect ratio as a custom pptxgenjs layout -
- * rather than forcibly cramming every source design into 16:9.
+ * The extractor's slide-root detection (`.slide` / `[data-slide]` / plain
+ * `<section>` / falling all the way back to "whatever is directly under
+ * <body>") only works cleanly when the source HTML was actually authored
+ * as slide-shaped boxes. Fed a normal scrolling "report" webpage instead
+ * (no slide markup at all), the fallback ends up treating either the
+ * entire page or one arbitrary section as "one slide" - and that block's
+ * natural, scroll-oriented pixel box (e.g. narrow-but-very-tall, or the
+ * opposite: wide-but-very-short) then gets used verbatim as the PPTX
+ * canvas shape via computeLayout(). The canvas itself ends up absurdly
+ * shaped, which is what makes text look "huge"/broken - the font sizes
+ * are normal, the box they're being packed into isn't slide-shaped at all.
+ *
+ * Rather than silently producing that kind of broken output, this fails
+ * fast with an explicit, actionable message instead of guessing a fix.
  */
+function assertSlideShapedAspectRatio(widthPx, heightPx) {
+  const MIN_RATIO = 0.5; // narrower than ~1:2 (portrait) - not slide-shaped
+  const MAX_RATIO = 2.6; // wider than ~2.6:1 - not slide-shaped
+  const ratio = widthPx / heightPx;
+  if (ratio >= MIN_RATIO && ratio <= MAX_RATIO) return;
+  const w = Math.round(widthPx);
+  const h = Math.round(heightPx);
+  throw new Error(
+    `変換できませんでした: 検出されたHTMLのサイズが ${w}×${h}px（縦横比 約${ratio.toFixed(2)}:1）で、` +
+    `スライド1枚としては不自然な形になっています。このツールは「1枚が16:9などのスライドサイズで区切られた` +
+    `HTML」を想定しているため、スクロール前提の縦長レポートHTMLなどはそのままでは変換できません。` +
+    `16:9（横向き）のスライド1枚分のサイズに収まるようHTMLを修正してから、再度アップロードしてください。`
+  );
+}
+
 function computeLayout(pptx, widthPx, heightPx) {
   const MAX_W_IN = 13.333;
   const MAX_H_IN = 7.5;
@@ -331,6 +356,7 @@ async function generateGenericPptx(slidesModel, options = {}) {
 
   // Use the first slide's aspect ratio for the whole deck (mixed aspect
   // ratios within one deck are rare and PPTX only supports one canvas size).
+  assertSlideShapedAspectRatio(slidesModel[0].widthPx, slidesModel[0].heightPx);
   const { scale } = computeLayout(pptx, slidesModel[0].widthPx, slidesModel[0].heightPx);
 
   for (let i = 0; i < slidesModel.length; i++) {
@@ -348,4 +374,4 @@ async function generateGenericPptx(slidesModel, options = {}) {
   return { pptx, lowConfidenceSlides, warnings, gradientPatches };
 }
 
-module.exports = { generateGenericPptx, renderSlideModelIntoPptx, computeLayout, mapFontFamily };
+module.exports = { generateGenericPptx, renderSlideModelIntoPptx, computeLayout, mapFontFamily, assertSlideShapedAspectRatio };
