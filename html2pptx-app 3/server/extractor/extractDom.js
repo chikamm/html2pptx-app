@@ -124,6 +124,107 @@ function browserSideExtract(opts) {
     return "rect";
   }
 
+  // --- pseudo-element (::before/::after) content, and <li> marker text ---
+  // A DOM walker is structurally blind to anything rendered only via CSS
+  // `content:` on a pseudo-element (decorative quote marks, "STEP 1"-style
+  // labels, arrows, list bullets/numbers) since no real node exists for it.
+  // These helpers do a best-effort recovery: real pseudo-elements get their
+  // own approximate rect (measured via canvas text metrics) and get folded
+  // in as ordinary "text" drawables; `<li>` markers have even less style
+  // introspection available, so their number/bullet text is synthesized
+  // and prepended directly onto the `<li>`'s own text run instead.
+
+  function pxOrNull(v) {
+    const n = parseFloat(v);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  let _measureCanvas = null;
+  function measureTextWidth(text, fontWeight, fontSizePx, fontFamily) {
+    if (!_measureCanvas) _measureCanvas = document.createElement("canvas");
+    const ctx = _measureCanvas.getContext("2d");
+    ctx.font = `${fontWeight || "normal"} ${fontSizePx || 16}px ${fontFamily || "sans-serif"}`;
+    return ctx.measureText(text || "").width;
+  }
+
+  function parsePseudoContent(raw, el) {
+    if (!raw || raw === "none" || raw === "normal") return null;
+    const s = raw.trim();
+    const strMatch = s.match(/^["']([\s\S]*)["']$/);
+    if (strMatch) return strMatch[1];
+    const attrMatch = s.match(/^attr\(([^)]+)\)$/);
+    if (attrMatch && el) {
+      const val = el.getAttribute(attrMatch[1].trim());
+      return val || null;
+    }
+    return null; // counters, gradients/images-as-content, etc. - not supported
+  }
+
+  function markerPrefixFor(el) {
+    if (el.tagName !== "LI") return null;
+    const cs = getComputedStyle(el);
+    if (cs.listStyleType === "none" || cs.listStyle === "none") return null;
+    const parent = el.parentElement;
+    const isOrdered = parent && parent.tagName === "OL";
+    if (!isOrdered) return "• ";
+    const siblings = parent ? Array.from(parent.children).filter((c) => c.tagName === "LI") : [el];
+    let idx = siblings.indexOf(el) + 1;
+    const startAttr = parent && parent.getAttribute("start");
+    if (startAttr) idx += parseInt(startAttr, 10) - 1;
+    const valueAttr = el.getAttribute("value");
+    if (valueAttr) idx = parseInt(valueAttr, 10);
+    return `${idx}. `;
+  }
+
+  function extractPseudo(el, which, hostRect) {
+    let cs;
+    try {
+      cs = getComputedStyle(el, `::${which}`);
+    } catch (e) {
+      return null;
+    }
+    if (!cs) return null;
+    const text = parsePseudoContent(cs.content, el);
+    if (!text) return null;
+    const fontSizePx = parseFloat(cs.fontSize) || 16;
+    const width = measureTextWidth(text, cs.fontWeight, fontSizePx, cs.fontFamily) || fontSizePx * text.length * 0.6;
+    const height = fontSizePx * 1.3;
+    const position = cs.position;
+    let x;
+    let y;
+    if (position === "absolute" || position === "fixed") {
+      const left = pxOrNull(cs.left);
+      const top = pxOrNull(cs.top);
+      const right = pxOrNull(cs.right);
+      const bottom = pxOrNull(cs.bottom);
+      x = left !== null ? hostRect.x + left : right !== null ? hostRect.x + hostRect.w - right - width : hostRect.x;
+      y = top !== null ? hostRect.y + top : bottom !== null ? hostRect.y + hostRect.h - bottom - height : hostRect.y;
+    } else {
+      // static/relative: approximate at the host's start edge (::before)
+      // or end edge (::after) since we have no real box to measure.
+      x = which === "before" ? hostRect.x : hostRect.x + Math.max(0, hostRect.w - width);
+      y = which === "before" ? hostRect.y : hostRect.y + Math.max(0, hostRect.h - height);
+    }
+    return {
+      type: "text",
+      rect: { x, y, w: width, h: height },
+      text,
+      runs: [{ text, style: { color: cs.color, bold: parseInt(cs.fontWeight, 10) >= 600, italic: cs.fontStyle === "italic", underline: false } }],
+      style: {
+        color: cs.color,
+        fontSizePx,
+        fontWeight: cs.fontWeight,
+        fontStyle: cs.fontStyle,
+        fontFamily: cs.fontFamily,
+        textAlign: cs.textAlign,
+        lineHeight: cs.lineHeight,
+        letterSpacingPx: cs.letterSpacing === "normal" ? 0 : parseFloat(cs.letterSpacing) || 0,
+      },
+      zIndex: 0,
+      order: 0, // overwritten by caller with out.length at push time
+    };
+  }
+
   function walkSlide(root, out) {
     const originRect = root.getBoundingClientRect();
 
@@ -134,6 +235,12 @@ function browserSideExtract(opts) {
       const tag = el.tagName;
       const rect = relRect(el, originRect);
 
+      const pseudoBefore = extractPseudo(el, "before", rect);
+      if (pseudoBefore) {
+        pseudoBefore.order = out.length;
+        out.push(pseudoBefore);
+      }
+
       if (tag === "IMG") {
         out.push({
           type: "image",
@@ -142,6 +249,11 @@ function browserSideExtract(opts) {
           zIndex: parseInt(cs.zIndex, 10) || 0,
           order: out.length,
         });
+        const pseudoAfterImg = extractPseudo(el, "after", rect);
+        if (pseudoAfterImg) {
+          pseudoAfterImg.order = out.length;
+          out.push(pseudoAfterImg);
+        }
         return;
       }
 
@@ -158,6 +270,7 @@ function browserSideExtract(opts) {
 
       const vis = hasOwnVisualStyle(cs);
       const ownTextEl = isInlineOnly(el, cs) && el.textContent && el.textContent.trim() !== "";
+      const liPrefix = markerPrefixFor(el);
 
       if (vis.visual) {
         out.push({
@@ -178,11 +291,15 @@ function browserSideExtract(opts) {
       }
 
       if (ownTextEl) {
+        const runs = extractRuns(el);
+        if (liPrefix) {
+          runs.unshift({ text: liPrefix, style: { color: cs.color, bold: false, italic: false, underline: false } });
+        }
         out.push({
           type: "text",
           rect,
-          text: el.innerText,
-          runs: extractRuns(el),
+          text: liPrefix ? liPrefix + el.innerText : el.innerText,
+          runs,
           style: {
             color: cs.color,
             fontSizePx: parseFloat(cs.fontSize),
@@ -196,13 +313,50 @@ function browserSideExtract(opts) {
           zIndex: parseInt(cs.zIndex, 10) || 0,
           order: out.length,
         });
+        const pseudoAfterText = extractPseudo(el, "after", rect);
+        if (pseudoAfterText) {
+          pseudoAfterText.order = out.length;
+          out.push(pseudoAfterText);
+        }
         return; // don't recurse further into pure text leaves
+      }
+
+      // `<li>` with block-level children (not a plain text leaf): the
+      // marker still needs to be captured somewhere, so give it its own
+      // small standalone text box at the item's top-left instead of
+      // losing it silently.
+      if (liPrefix) {
+        const fontSizePx = parseFloat(cs.fontSize) || 16;
+        out.push({
+          type: "text",
+          rect: { x: rect.x, y: rect.y, w: Math.max(24, fontSizePx * 2), h: fontSizePx * 1.3 },
+          text: liPrefix,
+          runs: [{ text: liPrefix, style: { color: cs.color, bold: false, italic: false, underline: false } }],
+          style: {
+            color: cs.color,
+            fontSizePx,
+            fontWeight: cs.fontWeight,
+            fontStyle: cs.fontStyle,
+            fontFamily: cs.fontFamily,
+            textAlign: "left",
+            lineHeight: cs.lineHeight,
+            letterSpacingPx: 0,
+          },
+          zIndex: parseInt(cs.zIndex, 10) || 0,
+          order: out.length,
+        });
       }
 
       // container: recurse into children regardless of whether this
       // element itself produced a box, so nested cards/badges/images
       // are still captured.
       Array.from(el.children).forEach((child) => visit(child, depth + 1));
+
+      const pseudoAfter = extractPseudo(el, "after", rect);
+      if (pseudoAfter) {
+        pseudoAfter.order = out.length;
+        out.push(pseudoAfter);
+      }
     }
 
     const rootCs = getComputedStyle(root);
